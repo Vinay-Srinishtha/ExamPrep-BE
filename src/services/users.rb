@@ -1,44 +1,42 @@
 class App::Services::Users < App::Services::Base
   def model; User; end
 
-  RESET_TOKEN_EXPIRATION_TIME = 2 * 60 * 60 
+  RESET_TOKEN_EXPIRATION_TIME = 2 * 60 * 60
 
   def list
     ds = model.order(Sequel.desc(:created_at))
     if qs[:search].present?
       search_term = "%#{qs[:search]}%"
-      ds = ds.where(Sequel.ilike(:full_name, search_term)).or(Sequel.ilike(:phone_number, search_term))
+      ds = ds.where(Sequel.ilike(:full_name, search_term)).or(Sequel.ilike(:email, search_term))
     end
-    if App.cu.user_obj.rgm?
-      ds = ds.where(parent_id: App.cu.user_obj.id)
-    end
+    ds = ds.where(role_id: qs[:role_id]) if qs[:role_id].present?
     count = ds.count
-    return_success(ds.offset(offset).limit(limit).all.map(&:as_pos), total_pages: (count / page_size.to_f).ceil )
+    return_success(ds.offset(offset).limit(limit).all.map(&:to_pos), total_pages: (count / page_size.to_f).ceil)
   end
 
-
   def get
-    result = item.as_json(only: [:full_name, :email, :role, :id, :active])
-    result.merge!(allowed_properties: item.property_ids, properties: Property.all.map{|p| {name: p.name, id: p.id}} )
+    result = item.to_pos
+    result.merge!(student_profile: item.student_profile&.to_pos) if item.student?
     return_success(result)
   end
 
   def create
     obj = model.new(data_for(:save))
-    if App.cu.user_obj.role == 2
-      obj.role = 3
-    end
     save(obj)
   end
 
   def info
-    return_success(
-      App.cu.user_obj.as_json(only: [:email, :id, :full_name, :role, :updated_at])
-    )
+    user = App.cu.user_obj
+    result = user.to_pos
+    if user.student?
+      result.merge!(student_profile: user.student_profile&.to_pos)
+    elsif user.parent?
+      result.merge!(linked_student_ids: user.linked_student_ids)
+    end
+    return_success(result)
   end
 
   def update_password
-    
     if App.cu.user_obj.password == params[:current_password]
       u = App.cu.user_obj
       u.password = params[:new_password]
@@ -55,20 +53,19 @@ class App::Services::Users < App::Services::Base
     if email.present?
       user = App::Models::User.where(email: email).first
       if user
-        user.send_password_reset_email('https://vhrr.net')
+        user.send_password_reset_email(ENV.fetch('APP_BASE_URL', 'http://localhost:3000'))
         return_success("Password reset email sent to #{user.email}")
       else
-        return_errors("User not found with email: #{email}", 404)
+        return_errors!("User not found with email: #{email}", 404)
       end
     else
-      return_errors("User email is required!", 400)
+      return_errors!("User email is required!", 400)
     end
   end
 
-
   def validate_password_token
     token = params['token']
-    
+
     if token.nil? || token.empty?
       return_errors!('Token is missing.', 400)
     else
@@ -83,7 +80,7 @@ class App::Services::Users < App::Services::Base
 
   def token_valid?(user)
     return false if user.reset_sent_at.nil?
-  
+
     token_age = Time.now - user.reset_sent_at
     token_age < RESET_TOKEN_EXPIRATION_TIME
   end
@@ -97,9 +94,8 @@ class App::Services::Users < App::Services::Base
     else
       user = App::Models::User.where(reset_token: token).first
       if user && token_valid?(user)
-        # Update the user's password and clear the reset token
         user.update(
-          password: new_password,  # Use your password hashing logic here
+          password: new_password,
           reset_token: nil,
           reset_sent_at: nil
         )
@@ -110,19 +106,9 @@ class App::Services::Users < App::Services::Base
     end
   end
 
-  def load_rgms
-    return_success(
-      model.where(role: 2).all.map{|u| {id: u.id, name: u.full_name, property_ids: u.property_ids}}
-    )
-  end
-  
-
-
-
-
   def self.fields
     {
-      save: [:full_name, :password, :email, :role, :property_ids, :active]
+      save: [:full_name, :password, :email, :mobile, :role_id, :account_status]
     }
   end
 end

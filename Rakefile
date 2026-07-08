@@ -12,6 +12,15 @@ namespace :db do
       Sequel::Migrator.run(db, "src/migrations", target: version)
     end
   end
+
+  desc "Seed roles, exams, full JEE syllabus, and demo accounts"
+  task :seed do
+    require 'bundler'
+    Bundler.require(:default, App.env)
+    App.load!
+    require_relative "src/db/seed"
+    App::Db::Seed.run!
+  end
 end
 
 

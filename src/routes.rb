@@ -48,19 +48,68 @@ class App::Routes < Roda
         r.put('update-password') { Users[r].update_password }
       end
 
+      # Student-facing syllabus + progress routes (any authenticated user may read the tree)
+      r.on 'syllabus' do
+        r.get('tree') { Syllabus[r].tree }
+      end
+
+      r.on 'progress' do
+        r.get { Progress[r].list }
+        r.put(Integer) { |learning_item_id| Progress[r, learning_item_id: learning_item_id].upsert }
+      end
+
+      r.on 'study-sessions' do
+        r.post { Progress[r].log_session }
+      end
+
+      r.on 'readiness' do
+        r.get { Readiness[r].mine }
+      end
+
+      # Parent dashboard routes
+      r.on 'parent' do
+        r.get('students') { ParentDashboard[r].students }
+        r.get('students', Integer, 'progress') { |student_id| ParentDashboard[r, student_id: student_id].progress }
+      end
+
       # Admin-only routes
       admin_required!
-      
+
       # Wrap all admin routes in error handling
       begin
         r.on 'users' do
           do_crud(Users, r, 'CRUDL')
         end
 
-        r.on 'regions' do
-          do_crud(Regions, r, 'CRUDL')
+        r.on 'exams' do
+          do_crud(Exams, r, 'CRUDL')
         end
-        
+
+        r.on 'subjects' do
+          do_crud(Subjects, r, 'CRUDL')
+        end
+
+        r.on 'chapters' do
+          do_crud(Chapters, r, 'CRUDL')
+        end
+
+        r.on 'sections' do
+          do_crud(Sections, r, 'CRUDL')
+        end
+
+        r.on 'subtopics' do
+          do_crud(Subtopics, r, 'CRUDL')
+        end
+
+        r.on 'learning-items' do
+          do_crud(LearningItems, r, 'CRUDL')
+        end
+
+        r.on 'parent-links' do
+          r.get { ParentLinks[r].list }
+          r.put(Integer) { |id| ParentLinks[r, id: id].approve }
+        end
+
         # Add other admin routes here
       rescue => e
         App.logger.error("API Error: #{e.message}")
@@ -92,7 +141,7 @@ class App::Routes < Roda
   end
 
   def admin_required!
-    unless (App.cu.user_obj.admin? || App.cu.user_obj.rgm?)
+    unless App.cu.user_obj.admin_access?
       request.halt(403, {'Content-Type' => 'application/json'},{ status: 'Forbidden!' }.to_json)
     end
   end

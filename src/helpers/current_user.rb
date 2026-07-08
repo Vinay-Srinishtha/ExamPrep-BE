@@ -60,9 +60,9 @@ class App::Helpers::CurrentUser
 
     def user_obj
       return nil if id.blank?
-      
+
       space[:user_obj] ||= begin
-        user = App::Models::User.where(active: true)[id]
+        user = App::Models::User.where(account_status: 'ACTIVE')[id]
         App.logger.warn("User not found or inactive: #{id}") if user.nil?
         user
       rescue => e
@@ -73,24 +73,20 @@ class App::Helpers::CurrentUser
 
     def basic_info
       return {} if user_obj.nil?
-      
-      user_obj.values.slice(:email, :first_name, :last_name, :role)
+
+      user_obj.values.slice(:email, :full_name, :role_id)
     end
 
     def admin?
-      user_obj&.role === 0
-    end
-
-    def entity_ids
-      user_obj&.entity_ids || []
+      user_obj&.admin_access? || false
     end
 
     def encoded_token(user)
       exp = (Time.now + TOKEN_EXPIRY).to_i
-      payload = { 
-        id: user.id, 
-        role: user.role, 
-        ip: ip, 
+      payload = {
+        id: user.id,
+        role: user.role_name,
+        ip: ip,
         exp: exp,
         iat: Time.now.to_i # Added issued at timestamp
       }

@@ -1,58 +1,56 @@
-class App::Models::User < Sequel::Model
+class App::Models::User < Sequel::Model(:users)
   include BCrypt
 
-  # Associations
-  # one_to_many :user_properties
+  many_to_one :role
+  one_to_one :student_profile, key: :user_id
 
-  # Role constants
-  ROLES = {
-    admin: 1,
-    rgm: 2,
-    gm: 3
-  }.freeze
+  one_to_many :parent_links, class: :'App::Models::ParentStudentLink', key: :parent_user_id
+  one_to_many :student_links, class: :'App::Models::ParentStudentLink', key: :student_user_id
+
+  def role_name
+    role&.role_name
+  end
+
+  def student?
+    role_name == App::Models::Role::STUDENT
+  end
+
+  def parent?
+    role_name == App::Models::Role::PARENT
+  end
 
   def admin?
-    role == ROLES[:admin]
+    role_name == App::Models::Role::ADMIN
   end
 
-  def rgm?
-    role == ROLES[:rgm]
+  def super_admin?
+    role_name == App::Models::Role::SUPER_ADMIN
   end
 
-  def gm?
-    role == ROLES[:gm]
+  # Admin dashboards and content-management routes are open to admins and super admins alike.
+  def admin_access?
+    admin? || super_admin?
+  end
+
+  # For a parent user: the students they're approved to view.
+  def linked_student_ids
+    parent_links_dataset.where(link_status: 'APPROVED').select_map(:student_user_id)
   end
 
   def validate
     super
-    validates_presence [:full_name, :email]
-    validates_unique(:email) { |ds| ds.where(active: true) }
+    validates_presence [:full_name, :password_hash, :role_id]
+    validates_unique(:email) if email
+    validates_unique(:mobile) if mobile
   end
 
   def password
-    @password ||= Password.new(encoded_password)
+    @password ||= Password.new(password_hash)
   end
 
   def password=(new_password)
     @password = Password.create(new_password)
-    self.encoded_password = @password
-  end
-
-  def name
-    full_name
-  end
-
-  def role_name
-    case role
-    when ROLES[:admin]
-      "Admin"
-    when ROLES[:rgm]
-      "RGM"
-    when ROLES[:gm]
-      "GM"
-    else
-      "Unknown"
-    end
+    self.password_hash = @password
   end
 
   def generate_reset_token!
@@ -92,21 +90,8 @@ class App::Models::User < Sequel::Model
     mail.deliver!
   end
 
-  def valid_property_ids
-    if admin?
-      App::Models::Property.where(client_id: client_id).select_map(:id)
-    else
-      property_ids || []
-    end
-  end
-
-  def properties
-    property_ids || []
-  end
-
-  def as_pos
-    as_json(only:
-      [:email, :full_name, :phone_number, :role, :id, :active, :created_at, :updated_at, :last_logged_in_at, :parent_id]
-    ).merge!(role_name: role_name, property_count: properties.length)
+  def to_pos
+    as_json(only: [:id, :full_name, :email, :mobile, :role_id, :account_status, :last_login_at, :created_at, :updated_at])
+      .merge('role_name' => role_name)
   end
 end

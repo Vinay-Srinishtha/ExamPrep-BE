@@ -1,10 +1,14 @@
 class App::Services::Session < App::Services::Base
 
   def login
-    user = User.find(email: params[:email]&.strip, active: true)
+    user = User.find(email: params[:email]&.strip)
 
     unless user && user.password == params[:password]
       return_errors!("Invalid Email / Password")
+    end
+
+    unless user.account_status == 'ACTIVE'
+      return_errors!("This account is #{user.account_status.to_s.downcase}. Contact an administrator.")
     end
 
     # Device binding check
@@ -15,11 +19,11 @@ class App::Services::Session < App::Services::Base
       end
     end
 
-    user.last_logged_in_at = Time.now
+    user.last_login_at = Time.now
     user.current_session_id = CurrentUser.encoded_token(user)
 
     if user.save
-      return_success(token: user.current_session_id, info: user.as_pos)
+      return_success(token: user.current_session_id, info: user.to_pos)
     else
       return_errors!(user.errors, 400)
     end

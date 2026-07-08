@@ -24,6 +24,8 @@ gem 'stripe'
 gem 'httpx'
 gem 'parallel'
 gem "attr_encrypted"
+gem 'rake'
+gem 'csv'
 
 group :development do
   gem 'listen'
