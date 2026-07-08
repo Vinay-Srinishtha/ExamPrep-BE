@@ -110,6 +110,10 @@ class App::Routes < Roda
           r.put(Integer) { |id| ParentLinks[r, id: id].approve }
         end
 
+        r.on 'admin' do
+          r.get('students', Integer, 'progress') { |student_id| AdminDashboard[r, student_id: student_id].student_progress }
+        end
+
         # Add other admin routes here
       rescue => e
         App.logger.error("API Error: #{e.message}")

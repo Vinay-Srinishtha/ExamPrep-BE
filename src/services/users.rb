@@ -11,7 +11,10 @@ class App::Services::Users < App::Services::Base
     end
     ds = ds.where(role_id: qs[:role_id]) if qs[:role_id].present?
     count = ds.count
-    return_success(ds.offset(offset).limit(limit).all.map(&:to_pos), total_pages: (count / page_size.to_f).ceil)
+    rows = ds.offset(offset).limit(limit).all.map do |u|
+      u.to_pos.merge('student_profile' => u.student?  ? u.student_profile&.to_pos : nil)
+    end
+    return_success(rows, total_pages: (count / page_size.to_f).ceil)
   end
 
   def get
