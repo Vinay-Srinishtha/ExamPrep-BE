@@ -10,7 +10,8 @@ gem 'activesupport', require: 'active_support/all'
 gem 'jwt'
 gem 'sequel'
 gem 'pg', platforms: 'ruby'
-gem 'sequel_pg', platform: 'ruby', require: false
+# sequel_pg fails to compile on Vercel; not needed (pg adapter works fine)
+# gem 'sequel_pg', platform: 'ruby', require: false
 gem 'bcrypt'
 gem 'json_schemer'
 gem 'aws-sdk-s3'

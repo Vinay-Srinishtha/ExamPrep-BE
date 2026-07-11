@@ -152,9 +152,6 @@ GEM
       bigdecimal
     sequel_enum (0.2.0)
       sequel
-    sequel_pg (1.17.2)
-      pg (>= 0.18.0, != 1.2.0)
-      sequel (>= 4.38.0)
     simpleidn (0.2.3)
     stripe (18.0.1)
     timeout (0.4.4)
@@ -205,7 +202,6 @@ DEPENDENCIES
   roda
   sequel
   sequel_enum
-  sequel_pg
   stripe
 
 RUBY VERSION
