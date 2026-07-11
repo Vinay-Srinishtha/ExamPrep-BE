@@ -6,18 +6,33 @@ require './src/app'
 
 Bundler.require(:default, App.env)
 
+begin
+  use Rack::Cors do
+    allow do
+      origins '*'
+      resource '*', :headers => :any, :methods => [:get, :post, :delete, :put, :patch, :options, :head]
+    end
+  end
 
-use Rack::Cors do
+  App.load!
+rescue => e
+  puts "FATAL ERROR during app initialization: #{e.message}"
+  puts e.backtrace.join("\n")
+  raise e
+end
 
-  allow do
-    origins '*'
-    resource '*', :headers => :any, :methods => [:get, :post, :delete, :put, :patch, :options, :head]
+# Wrap the app to handle errors gracefully
+app = Proc.new do |env|
+  begin
+    App::Routes.call(env)
+  rescue => e
+    puts "ERROR: #{e.message}"
+    puts e.backtrace.join("\n")
+    [500, {'Content-Type' => 'application/json'}, [{status: 'error', data: e.message}.to_json]]
   end
 end
 
-App.load!
-
-run App::Routes
+run app
 
 if App.development?
   Listen.to(File.expand_path(File.dirname(__FILE__)), only: %r{.rb$}) do |added, modified, removed|
